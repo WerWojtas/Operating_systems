@@ -1,4 +1,4 @@
-Laboratory exercises for operating system labs.
+# Laboratory exercises for operating system labs.
 - Lab0: simple c and makefile
 - Lab1: libraries
 - Lab2: files and directories
