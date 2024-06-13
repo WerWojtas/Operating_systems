@@ -9,4 +9,4 @@
 - Lab7: memory and semaphores
 - Lab8: threads part 1
 - Lab9: threads part 2
-- Lab10: sockets part 1
+- Lab10: sockets 
