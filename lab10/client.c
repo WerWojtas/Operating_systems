@@ -9,6 +9,7 @@
 #define BUFFER_SIZE 1024
 
 int client_socket;
+pthread_mutex_t socket_mutex;
 
 void error(const char *msg) {
     perror(msg);
@@ -20,13 +21,15 @@ void handle_sigint(int sig) {
     bzero(buffer, BUFFER_SIZE);
     strcpy(buffer, "DISCONNECT");
 
-    // Inform the server that the client is disconnecting
+    pthread_mutex_lock(&socket_mutex);
     if (write(client_socket, buffer, strlen(buffer)) < 0) {
         perror("Error writing to socket");
     }
+    pthread_mutex_unlock(&socket_mutex);
 
     close(client_socket);
     printf("\nClient disconnected.\n");
+    pthread_mutex_destroy(&socket_mutex);
     exit(0);
 }
 
@@ -35,7 +38,11 @@ void *receive_messages(void *arg) {
     int n;
     while (1) {
         bzero(buffer, BUFFER_SIZE);
+        
+        pthread_mutex_lock(&socket_mutex);
         n = read(client_socket, buffer, BUFFER_SIZE);
+        pthread_mutex_unlock(&socket_mutex);
+
         if (n < 0)
             error("Error reading from socket");
         else if (n == 0) {
@@ -48,7 +55,9 @@ void *receive_messages(void *arg) {
             exit(0);
         }
         if (strncmp(buffer, "ping", 4) == 0) {
+            pthread_mutex_lock(&socket_mutex);
             write(client_socket, "pong", 4);
+            pthread_mutex_unlock(&socket_mutex);
             continue;
         }
         printf("Received: %s\n", buffer);
@@ -85,9 +94,15 @@ int main(int argc, char *argv[]) {
         error("Connection failed");
 
     printf("Connected to server\n");
-    int n = write(client_socket, client_name, strlen(client_name));
+    char result[50];
+    if (snprintf(result, sizeof(result), "%s %s", "HELLO", client_name) < 0)
+        error("Error creating message");
+    printf("Sending: %s\n", result);
+    int n = write(client_socket, result, strlen(result));
     if (n < 0)
         error("Error writing to socket");
+
+    pthread_mutex_init(&socket_mutex, NULL);
 
     pthread_t recv_thread;
     if (pthread_create(&recv_thread, NULL, receive_messages, NULL) != 0) {
@@ -99,12 +114,16 @@ int main(int argc, char *argv[]) {
         bzero(buffer, BUFFER_SIZE);
         fgets(buffer, BUFFER_SIZE, stdin);
 
+        pthread_mutex_lock(&socket_mutex);
         n = write(client_socket, buffer, strlen(buffer));
+        pthread_mutex_unlock(&socket_mutex);
+
         if (n < 0)
             error("Error writing to socket");
     }
 
     pthread_cancel(recv_thread);
     close(client_socket);
+    pthread_mutex_destroy(&socket_mutex);
     return 0;
 }
